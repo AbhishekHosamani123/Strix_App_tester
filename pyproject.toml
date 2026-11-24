@@ -55,6 +55,7 @@ dependencies = [
 [project.optional-dependencies]
 vertex = ["google-auth>=2.0.0"]
 bedrock = ["boto3>=1.28.0"]
+laya = ["laya>=0.3.20"]
 
 [project.scripts]
 strix = "strix.interface.main:main"
@@ -137,6 +138,7 @@ module = [
     "pypdf.*",
     "yaml.*",
     "pygments.*",
+    "laya.*",
 ]
 ignore_missing_imports = true
 disable_error_code = ["import-untyped"]
@@ -305,12 +307,15 @@ ignore = [
 "strix/llm/context_budget.py" = ["PLC0415"]
 # Lazy import of strix.config.models avoids a circular dependency between the
 # report pipeline and the config layer.
-"strix/report/dedupe.py" = ["PLC0415"]
+"strix/report/dedupe.py" = ["PLC0415", "PLR0911"]
 "strix/telemetry/logging.py" = ["PLC0415"]
 "strix/config/models.py" = ["PLC0415"]
 # LiteLLM is imported lazily: the request log is wired at startup on every
 # route, including the native OpenAI ones that never load LiteLLM.
 "strix/llm/request_log.py" = ["PLC0415"]
+# The optional laya package (heavy inference deps) imports on first engine use,
+# never at module scope.
+"strix/laya/engine.py" = ["PLC0415"]
 # Heavy inference deps (httpx, openai) imported lazily so auth-status checks
 # don't pull them in.
 "strix/config/codex.py" = ["PLC0415"]

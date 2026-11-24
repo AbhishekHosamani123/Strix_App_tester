@@ -340,6 +340,19 @@ async def check_duplicate(
     if dependency_duplicate is not None:
         return dependency_duplicate
 
+    if load_settings().laya.enabled and load_settings().laya.dedupe:
+        from strix.laya.dedupe import check_duplicate_with_laya
+
+        laya_result = await check_duplicate_with_laya(candidate, existing_reports)
+        if laya_result is not None:
+            logger.info(
+                "Deduplication check (Laya): is_duplicate=%s, confidence=%.2f, reason=%s",
+                laya_result["is_duplicate"],
+                laya_result["confidence"],
+                laya_result["reason"][:100],
+            )
+            return laya_result
+
     try:
         settings = load_settings()
         dedupe = settings.dedupe

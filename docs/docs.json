@@ -67,6 +67,7 @@
             "group": "Advanced",
             "pages": [
               "advanced/configuration",
+              "advanced/laya-decision-engine",
               "advanced/skills",
               "contributing"
             ]

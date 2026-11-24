@@ -1,0 +1,48 @@
+---
+title: "Laya Decision Engine"
+description: "Answer Strix's typed decisions locally with the open-weights Laya decision model — fewer LLM calls, no API key"
+---
+
+[Laya](https://huggingface.co/convaiinnovations/laya) is an open-weights **decision model** (Apache-2.0) from Convai Innovations. Unlike an LLM, it does not generate text: it answers typed questions — **choice**, **score**, or **boolean** — about a given state in a single forward pass and returns calibrated probabilities. Strix uses it to answer its typed decisions locally, which removes LLM calls (and the need for an LLM API key for those decisions).
+
+<Warning>
+**What Laya can and cannot replace**: Strix's agent loop — planning, generating terminal commands, driving the browser, writing reports — is generative and always runs on the configured LLM. Laya only takes over decisions that have a fixed set of possible answers, and it always escalates back to the LLM when it is not confident. It reduces LLM dependency; it does not remove the LLM from a scan.
+</Warning>
+
+## What Laya handles in Strix
+
+Today, one decision point is Laya-backed:
+
+- **Vulnerability deduplication** — when a new finding arrives, Laya decides in one forward pass whether it duplicates an existing report (same root cause, same endpoint/parameter, same fix). Without Laya this comparison runs on your configured LLM; with Laya it runs locally, free, in milliseconds, and only escalates to the LLM when Laya's confidence is below the threshold.
+
+## Setup
+
+```bash
+uv pip install "strix-agent[laya]"      # or: pip install "strix-agent[laya]"
+export STRIX_LAYA_ENABLED=true
+```
+
+The first decision downloads the checkpoint (~800 MB) from Hugging Face and caches it locally. Every decision after that is a single local forward pass — no network, no tokens, no cost.
+
+## Configuration
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `STRIX_LAYA_ENABLED` | `false` | Master switch |
+| `STRIX_LAYA_MODEL` | `convaiinnovations/laya` | Hugging Face model id (or local path) |
+| `STRIX_LAYA_SUBFOLDER` | `typed-decisions` | Checkpoint: `typed-decisions` (1024-token context), `english` (512), or `multilingual` (1024, 100+ languages) |
+| `STRIX_LAYA_DEVICE` | auto | `cpu`, `cuda`, or leave unset for auto-detection |
+| `STRIX_LAYA_MIN_CONFIDENCE` | `0.7` | Decisions below this confidence escalate to the LLM |
+| `STRIX_LAYA_DEDUPE` | `true` | Use Laya for vulnerability deduplication |
+
+## How escalation works
+
+Laya never blocks a decision on itself. The dedupe flow with Laya enabled:
+
+1. **Deterministic checks first** — dependency/CVE identity matches are resolved without any model.
+2. **Laya decides** — one forward pass per chunk of existing reports, choosing the duplicated report id or `none`, with a calibrated confidence.
+3. **Escalate when unsure** — confidence below `STRIX_LAYA_MIN_CONFIDENCE`, a report with no id, a state that does not fit the checkpoint context, an unexpected answer, or any error hands the decision back to the LLM judge. With Laya disabled, unavailable, or not installed, everything behaves exactly as before.
+
+## Hardware notes
+
+Laya is a ~400M-parameter model. On a GPU (T4-class or better), a decision takes ~30 ms. CPU-only hosts work but a warm decision can take tens of seconds, so on CPU it is a throughput trade-off against the LLM call rather than a latency win. Zero-shot accuracy is weakest on unusual findings; if you have labeled dedupe history, fine-tuning the `typed-decisions` checkpoint (Convai publishes a Kaggle notebook) and raising `STRIX_LAYA_MIN_CONFIDENCE` improves precision.

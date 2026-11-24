@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import litellm
 import pytest
 from agents.extensions.models.litellm_model import LitellmModel
@@ -219,3 +221,45 @@ def test_api_type_overrides_the_api_base_route(
     while isinstance(model, _NonStreamingModel | _TurnGuardModel | RequestLoggingModel):
         model = model._inner
     assert isinstance(model, expected)
+
+
+def test_local_endpoint_without_api_key_gets_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keyless local endpoints work out of the box: a placeholder key is sent
+    instead of the request dying on a missing-credential error."""
+    monkeypatch.setattr(_openai_shared, "_default_openai_key", None)
+    monkeypatch.setattr(litellm, "api_key", None)
+    monkeypatch.setenv("STRIX_LLM", "openai/local-model")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("LLM_API_BASE", "http://localhost:8080/v1")
+    # OPENAI_API_KEY is itself an alias for llm.api_key, so it must be absent
+    # for the placeholder path to trigger. _mirror_api_key_to_provider_env
+    # writes it back as a side effect, so restore the prior state manually.
+    prior_openai_key = os.environ.get("OPENAI_API_KEY")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    try:
+        configure_sdk_model_defaults(Settings())
+        assert litellm.api_key == "not-needed"
+        assert _openai_shared._default_openai_key == "not-needed"
+    finally:
+        if prior_openai_key is None:
+            os.environ.pop("OPENAI_API_KEY", None)
+        else:
+            os.environ["OPENAI_API_KEY"] = prior_openai_key
+
+
+def test_missing_api_base_without_key_stays_keyless(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No api_base and no key means no placeholder: nothing is sent anywhere."""
+    monkeypatch.setattr(_openai_shared, "_default_openai_key", None)
+    monkeypatch.setattr(litellm, "api_key", None)
+    monkeypatch.delenv("STRIX_LLM", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    configure_sdk_model_defaults(Settings())
+    assert litellm.api_key is None
+    assert _openai_shared._default_openai_key is None

@@ -668,10 +668,14 @@ def configure_sdk_model_defaults(settings: Settings) -> None:
         return
     _configure_litellm_compatibility()
     _configure_openrouter_attribution(llm.model)
-    if llm.api_key:
-        set_default_openai_key(llm.api_key, use_for_tracing=False)
-        _configure_litellm_default("api_key", llm.api_key)
-        _mirror_api_key_to_provider_env(llm.model, llm.api_key)
+    # Local OpenAI-compatible endpoints (Ollama, llama.cpp, LM Studio, vLLM)
+    # need no credential, but providers reject keyless requests outright, so an
+    # explicit placeholder key is sent instead of failing at request time.
+    api_key = llm.api_key or ("not-needed" if llm.api_base else None)
+    if api_key:
+        set_default_openai_key(api_key, use_for_tracing=False)
+        _configure_litellm_default("api_key", api_key)
+        _mirror_api_key_to_provider_env(llm.model, api_key)
     if llm.api_base:
         os.environ["OPENAI_BASE_URL"] = llm.api_base
         _configure_litellm_default("api_base", llm.api_base)
@@ -874,6 +878,10 @@ def supports_strict_tool_schemas(model_name: str) -> bool:
     exceeded and the request is rejected outright.
     """
     name = model_name.strip().lower()
+    # Groq's strict-schema validation rejects Strix's no-argument tools
+    # ('required' present but 'properties' missing), so route it non-strict.
+    if "groq" in name:
+        return False
     return not any(marker in name for marker in _ANTHROPIC_MODEL_MARKERS)
 
 

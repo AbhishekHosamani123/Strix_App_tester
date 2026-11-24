@@ -71,6 +71,49 @@ class LlmSettings(BaseSettings):
     )
 
 
+class LayaSettings(BaseSettings):
+    """Local Laya decision-model settings.
+
+    Laya (https://huggingface.co/convaiinnovations/laya, Apache-2.0) is an
+    open-weights decision model, not a text generator: it answers typed
+    choice/score/boolean questions about a state in a single forward pass and
+    returns calibrated probabilities. Strix uses it to answer typed decisions
+    locally — no LLM API key, no tokens, no cost — and falls back to the
+    configured LLM whenever Laya is disabled, unavailable, or not confident
+    enough.
+    """
+
+    model_config = _BASE_CONFIG
+
+    enabled: bool = Field(
+        default=False,
+        alias="STRIX_LAYA_ENABLED",
+    )
+    model: str = Field(
+        default="convaiinnovations/laya",
+        alias="STRIX_LAYA_MODEL",
+    )
+    subfolder: str | None = Field(
+        default="typed-decisions",
+        alias="STRIX_LAYA_SUBFOLDER",
+    )
+    device: str | None = Field(
+        default=None,
+        alias="STRIX_LAYA_DEVICE",
+    )
+    # Decisions below this confidence escalate to the LLM judge.
+    min_confidence: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        alias="STRIX_LAYA_MIN_CONFIDENCE",
+    )
+    dedupe: bool = Field(
+        default=True,
+        alias="STRIX_LAYA_DEDUPE",
+    )
+
+
 class DedupeSettings(BaseSettings):
     model_config = _BASE_CONFIG
 
@@ -178,6 +221,7 @@ class Settings(BaseSettings):
 
     llm: LlmSettings = Field(default_factory=LlmSettings)
     dedupe: DedupeSettings = Field(default_factory=DedupeSettings)
+    laya: LayaSettings = Field(default_factory=LayaSettings)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     context: ContextSettings = Field(default_factory=ContextSettings)
     telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)

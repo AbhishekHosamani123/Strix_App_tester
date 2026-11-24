@@ -106,3 +106,9 @@ A low sampling temperature (roughly 0.2–0.6, depending on the family) also mea
 <Warning>
 Even correctly configured, small models (< ~30B) emit malformed or text-form tool calls far more often than frontier models. Prefer a capable model for reliable agentic behavior.
 </Warning>
+
+## Cut LLM calls entirely with the Laya decision engine
+
+For the *decisions* Strix makes with a fixed set of possible answers — such as whether a new finding duplicates an existing report — you can skip the LLM altogether: the open-weights [Laya](https://huggingface.co/convaiinnovations/laya) decision model answers them locally in a single forward pass, with no API key and no tokens, and escalates to the LLM only when unsure.
+
+See [Laya Decision Engine](/advanced/laya-decision-engine) for setup and configuration.
